@@ -6211,15 +6211,11 @@ std::optional<QString> Host::userWindowStyleSheet(const QString& name) const
 // (see TMainConsole::reportGeometry()), so this needs no widget.
 std::optional<QRect> Host::windowGeometry(const QString& name) const
 {
-    if (!hasConsoleView()) {
-        return {};
-    }
-
     if (name.isEmpty() || name == QLatin1String("main")) {
         // 0,0 rather than the console's pos(), which under multi-view is an
         // offset within the split; the size is mainWindowSize()'s so the two
         // functions cannot disagree.
-        return {QRect(QPoint(0, 0), mWindowRegistry.mainWindowSize())};
+        return {QRect(QPoint(0, 0), mainWindowSize().value_or(QSize()))};
     }
     if (const TLabelModel* pLabel = mWindowRegistry.labelModel(name)) {
         return pLabel->mGeometry;
@@ -6238,19 +6234,21 @@ std::optional<QRect> Host::windowGeometry(const QString& name) const
 std::optional<QSize> Host::mainWindowSize() const
 {
     if (!hasConsoleView()) {
-        return {};
+        // Nothing lays the main console out, so it is the character grid NAWS reports
+        const QFontMetrics metrics(consoleFrontend()->displayFont());
+        return {QSize(mScreenWidth * metrics.averageCharWidth(), mScreenHeight * metrics.height())};
     }
     return {mWindowRegistry.mainWindowSize()};
 }
 
 std::optional<QSize> Host::windowGridSize(const QString& name) const
 {
-    if (!hasConsoleView()) {
-        return {};
-    }
     const TConsoleModel* pModel = consoleModelNamed(name);
     if (!pModel) {
         return {};
+    }
+    if (pModel == mpMainConsoleModel.get() && !hasConsoleView()) {
+        return {QSize(mScreenWidth, mScreenHeight)};
     }
     return {pModel->mGridSize};
 }
@@ -6293,9 +6291,6 @@ std::optional<bool> Host::windowScrollBarVisible(const QString& name) const
 
 std::optional<QFont> Host::windowFont(const QString& name) const
 {
-    if (!hasConsoleView()) {
-        return {};
-    }
     const TConsoleModel* pModel = consoleModelNamed(name);
     if (!pModel) {
         return {};
@@ -6308,12 +6303,12 @@ std::optional<QFont> Host::windowFont(const QString& name) const
 
 std::optional<int> Host::windowFontSize(const QString& name) const
 {
-    if (!hasConsoleView()) {
-        return {};
-    }
     const TConsoleModel* pModel = consoleModelNamed(name);
     if (!pModel) {
         return {};
+    }
+    if (pModel == mpMainConsoleModel.get() && !hasConsoleView()) {
+        return {consoleFrontend()->displayFont().pointSize()};
     }
     return {pModel->mUpperPaneFont.pointSize()};
 }
@@ -6365,13 +6360,10 @@ std::optional<QColor> Host::borderColor() const
 
 std::optional<QSize> Host::userWindowSize(const QString& name) const
 {
-    if (!hasConsoleView()) {
-        return {};
-    }
     if (auto size = mWindowRegistry.userWindowSize(name)) {
         return size;
     }
-    return {mWindowRegistry.mainWindowSize()};
+    return mainWindowSize();
 }
 
 // Returns whether a window element is currently visible, mirroring the widget
