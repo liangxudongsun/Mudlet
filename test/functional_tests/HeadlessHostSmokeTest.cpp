@@ -4456,18 +4456,24 @@ headlessColours = table.concat({fr, fg, fb, br, bg, bb}, ",")
         QVERIFY2(host, "The profile is not in the pool.");
         QVERIFY(!host->hasConsoleView());
         const QFont startFont = host->getDisplayFont();
+        const QString startFamily = QFontInfo(startFont).family();
 
+        // setFont() refuses a family this machine does not have, and macOS CI has none of the Linux ones
+        const QStringList installed = FontManager::availableFonts();
+        QString family;
+        for (const QString& candidate : QStringList{qsl("DejaVu Sans"), qsl("Ubuntu Mono"), qsl("Menlo"), qsl("Courier New")} + installed) {
+            if (installed.contains(candidate) && !candidate.startsWith(QLatin1Char('.')) && !candidate.contains(QLatin1Char('"')) && !candidate.contains(QLatin1Char('\\'))
+                && QFontInfo(host->createFontWithSettings(candidate, startFont.pointSize())).family() != startFamily) {
+                family = candidate;
+                break;
+            }
+        }
+        QVERIFY2(!family.isEmpty(), "No font family other than the main console one is installed.");
+
+        QVERIFY(host->getLuaInterpreter()->compileAndExecuteScript(qsl("labelMainFamily = \"%1\"").arg(family)));
         const bool ran = host->getLuaInterpreter()->compileAndExecuteScript(qsl(R"lua(
 headlessLabelMain = "not run"
 local ok, err = pcall(function()
-  local fonts = getAvailableFonts()
-  for _, candidate in ipairs({"DejaVu Sans", "Ubuntu Mono", "Liberation Mono", "Noto Sans Mono"}) do
-    if fonts[candidate] and candidate ~= getFont("main") then
-      labelMainFamily = candidate
-      break
-    end
-  end
-  assert(labelMainFamily, "no font family other than the main console one is installed")
   assert(createLabel("main", 0, 0, 50, 20, 1) == true, "createLabel did not answer true")
 end)
 headlessLabelMain = ok and "ok" or tostring(err)
@@ -4476,7 +4482,6 @@ headlessLabelMain = ok and "ok" or tostring(err)
         QCOMPARE(luaGlobalString(host, "headlessLabelMain"), qsl("ok"));
         const auto labelBefore = host->labelFont(qsl("main"));
         QVERIFY2(labelBefore, "The label named main was not made.");
-        const QString family = luaGlobalString(host, "labelMainFamily");
 
         const bool set = host->getLuaInterpreter()->compileAndExecuteScript(qsl(R"lua(
 headlessLabelMain = "not run"
