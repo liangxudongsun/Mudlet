@@ -47,6 +47,7 @@
 #include "TLabel.h"
 #include "TLabelModel.h"
 #include "TLuaInterpreter.h"
+#include "XMLimport.h"
 
 #include "GroupedTest.h"
 
@@ -4402,6 +4403,48 @@ fbYT0tapBHTFGBkf6NgxBGenwL5TDeL9g3w57+FWiHtIKUylQhCoNb20
         Host* host = HostManager::self()->getHost(hostname);
         QVERIFY2(host, "The profile is not in the pool.");
         QVERIFY(!host->mMapperCenterSmallAreas);
+    }
+
+    // Text echoed to main takes the profile's colours from birth, as the view applies them when it is
+    // built, and then the colours a profile save brings.
+    void test_mainConsoleTextTakesTheProfileColours()
+    {
+        const QString hostname = qsl("Test-Headless-Host-Colours");
+        QVERIFY2(HostManager::self()->addHost(hostname, QString(), QString(), QString()), "Could not create a profile with no main window.");
+        Host* host = HostManager::self()->getHost(hostname);
+        QVERIFY2(host, "The profile is not in the pool.");
+        const QString echoAndRead = qsl(R"lua(
+echo("main", "\n%1")
+moveCursorEnd("main")
+selectString("main", "%1", 1)
+local fr, fg, fb = getFgColor("main")
+local br, bg, bb = getBgColor("main")
+deselect("main")
+headlessColours = table.concat({fr, fg, fb, br, bg, bb}, ",")
+)lua");
+        const auto echoedColours = [host, &echoAndRead](const QString& text) {
+            host->getLuaInterpreter()->compileAndExecuteScript(echoAndRead.arg(text));
+            return luaGlobalString(host, "headlessColours");
+        };
+        const auto coloursOf = [](const QColor& fg, const QColor& bg) {
+            return qsl("%1,%2,%3,%4,%5,%6").arg(fg.red()).arg(fg.green()).arg(fg.blue()).arg(bg.red()).arg(bg.green()).arg(bg.blue());
+        };
+        QCOMPARE(echoedColours(qsl("fresh text")), coloursOf(QColorConstants::LightGray, QColorConstants::Black));
+
+        const QByteArray save = "<?xml version=\"1.0\"?><MudletPackage version=\"1.001\"><HostPackage><Host>"
+                                "<mFgColor>#102030</mFgColor><mBgColor>#405060</mBgColor>"
+                                "</Host></HostPackage></MudletPackage>";
+        QTemporaryDir saveDir;
+        QVERIFY(saveDir.isValid());
+        QFile file(saveDir.filePath(qsl("save.xml")));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write(save), save.size());
+        file.close();
+        QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+        XMLimport importer(host);
+        const auto [imported, importError] = importer.importPackage(&file);
+        QVERIFY2(imported, qPrintable(importError));
+        QCOMPARE(echoedColours(qsl("loaded text")), coloursOf(QColor(0x10, 0x20, 0x30), QColor(0x40, 0x50, 0x60)));
     }
 };
 
