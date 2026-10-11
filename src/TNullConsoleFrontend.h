@@ -269,6 +269,8 @@ private:
         QString userWindow;
         std::shared_ptr<ScrollBox> box;
         bool shown = true;
+        // Its own, which the registry has only while no scroll box has the name
+        QRect geometry;
         // TCommandLine::mActionFunction, a Lua registry index
         int action = 0;
     };
@@ -327,6 +329,8 @@ private:
     bool shownWithin(const QString& userWindow, const ScrollBox* box) const;
     bool setPlainWindowShown(const QString& name, bool shown);
     bool ownsCommandLine(const QString& name) const;
+    void releaseCommandLine(const QString& name, const CommandLine& commandLine);
+    void republishCommandLine(const QString& name);
     static bool within(const ScrollBox* container, const ScrollBox* box);
     void removeScrollBoxContents(const ScrollBox* box);
     void moveScrollBoxContents(const ScrollBox* box);
