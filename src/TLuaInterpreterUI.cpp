@@ -297,9 +297,7 @@ int TLuaInterpreter::alert(lua_State* L)
         }
     }
 
-    if (auto* application = TAppFrontend::instance()) {
-        application->alertUser(qRound(luaAlertDuration * 1000.0));
-    }
+    TAppFrontend::instance()->alertUser(qRound(luaAlertDuration * 1000.0));
 
     return 0;
 }
@@ -1663,7 +1661,8 @@ int TLuaInterpreter::getLineNumber(lua_State* L)
 int TLuaInterpreter::getMainConsoleWidth(lua_State* L)
 {
     Host& host = getHostFromLua(L);
-    int fw = QFontMetrics(host.getDisplayFont()).averageCharWidth();
+    const QFont font = host.hasConsoleView() ? host.getDisplayFont() : host.displayFontWithNoView();
+    int fw = QFontMetrics(font).averageCharWidth();
     fw *= host.mWrapAt + 1;
     lua_pushnumber(L, fw);
     return 1;
@@ -4779,9 +4778,6 @@ int TLuaInterpreter::addCommand(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
-        return warnArgumentValue(L, __func__, "mudlet instance not available");
-    }
 
     // The nearest Lua frame decides: further up, a command typed through the
     // "lua" alias would belong to whichever package provides that alias
@@ -4814,7 +4810,8 @@ int TLuaInterpreter::removeCommand(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
+    // The null view would answer a bare false; a script is better told why
+    if (!TAppFrontend::hasView()) {
         return warnArgumentValue(L, __func__, "mudlet instance not available");
     }
 
@@ -4829,7 +4826,8 @@ int TLuaInterpreter::enableCommand(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
+    // The null view would answer a bare false; a script is better told why
+    if (!TAppFrontend::hasView()) {
         return warnArgumentValue(L, __func__, "mudlet instance not available");
     }
 
@@ -4844,7 +4842,8 @@ int TLuaInterpreter::disableCommand(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
+    // The null view would answer a bare false; a script is better told why
+    if (!TAppFrontend::hasView()) {
         return warnArgumentValue(L, __func__, "mudlet instance not available");
     }
 
@@ -4860,7 +4859,8 @@ int TLuaInterpreter::setCommandChecked(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
+    // The null view would answer a bare false; a script is better told why
+    if (!TAppFrontend::hasView()) {
         return warnArgumentValue(L, __func__, "mudlet instance not available");
     }
 
@@ -4876,7 +4876,8 @@ int TLuaInterpreter::setCommandPinned(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
+    // The null view would answer a bare false; a script is better told why
+    if (!TAppFrontend::hasView()) {
         return warnArgumentValue(L, __func__, "mudlet instance not available");
     }
 
@@ -4892,7 +4893,8 @@ int TLuaInterpreter::setCommandIcon(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
+    // The null view would answer a bare false; a script is better told why
+    if (!TAppFrontend::hasView()) {
         return warnArgumentValue(L, __func__, "mudlet instance not available");
     }
 
@@ -4908,7 +4910,8 @@ int TLuaInterpreter::setCommandTooltip(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
+    // The null view would answer a bare false; a script is better told why
+    if (!TAppFrontend::hasView()) {
         return warnArgumentValue(L, __func__, "mudlet instance not available");
     }
 
@@ -4941,9 +4944,6 @@ int TLuaInterpreter::setCommandPulse(lua_State* L)
 
     auto& host = getHostFromLua(L);
     auto pFrontend = TAppFrontend::instance();
-    if (!pFrontend) {
-        return warnArgumentValue(L, __func__, "mudlet instance not available");
-    }
 
     QString error;
     const bool success = pFrontend->setAddonCommandPulse(commandId, enabled, color1, color2, interval, &host, error);
@@ -4976,10 +4976,8 @@ int TLuaInterpreter::invokeFileDialog(lua_State* L)
         }
     }
 
-    QString fileName;
-    if (auto* frontend = TAppFrontend::instance()) {
-        fileName = luaDir ? frontend->getOpenFileName(title, location) : frontend->getExistingDirectory(title, location);
-    }
+    auto* frontend = TAppFrontend::instance();
+    const QString fileName = luaDir ? frontend->getOpenFileName(title, location) : frontend->getExistingDirectory(title, location);
     lua_pushstring(L, fileName.toUtf8().constData());
     return 1;
 }
