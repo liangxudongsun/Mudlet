@@ -4446,6 +4446,68 @@ headlessColours = table.concat({fr, fg, fb, br, bg, bb}, ",")
         QVERIFY2(imported, qPrintable(importError));
         QCOMPARE(echoedColours(qsl("loaded text")), coloursOf(QColor(0x10, 0x20, 0x30), QColor(0x40, 0x50, 0x60)));
     }
+
+    // The GUI resolves "main" to the main console before it looks for a label of that name
+    void test_setFontPrefersMainConsoleOverALabelNamedMain()
+    {
+        const QString hostname = qsl("Test-Headless-Host-Font-Label-Main");
+        QVERIFY2(HostManager::self()->addHost(hostname, QString(), QString(), QString()), "Could not create a profile with no main window.");
+        Host* host = HostManager::self()->getHost(hostname);
+        QVERIFY2(host, "The profile is not in the pool.");
+        QVERIFY(!host->hasConsoleView());
+        const QFont startFont = host->getDisplayFont();
+
+        const bool ran = host->getLuaInterpreter()->compileAndExecuteScript(qsl(R"lua(
+headlessLabelMain = "not run"
+local ok, err = pcall(function()
+  local fonts = getAvailableFonts()
+  for _, candidate in ipairs({"DejaVu Sans", "Ubuntu Mono", "Liberation Mono", "Noto Sans Mono"}) do
+    if fonts[candidate] and candidate ~= getFont("main") then
+      labelMainFamily = candidate
+      break
+    end
+  end
+  assert(labelMainFamily, "no font family other than the main console one is installed")
+  assert(createLabel("main", 0, 0, 50, 20, 1) == true, "createLabel did not answer true")
+end)
+headlessLabelMain = ok and "ok" or tostring(err)
+)lua"));
+        QVERIFY2(ran, "The Lua chunk did not run.");
+        QCOMPARE(luaGlobalString(host, "headlessLabelMain"), qsl("ok"));
+        const auto labelBefore = host->labelFont(qsl("main"));
+        QVERIFY2(labelBefore, "The label named main was not made.");
+        const QString family = luaGlobalString(host, "labelMainFamily");
+
+        const bool set = host->getLuaInterpreter()->compileAndExecuteScript(qsl(R"lua(
+headlessLabelMain = "not run"
+local ok, err = pcall(function()
+  assert(setFont("main", labelMainFamily) == true, "setFont did not answer true for main")
+  labelMainSetFont = getFont("main")
+end)
+headlessLabelMain = ok and "ok" or tostring(err)
+)lua"));
+        QVERIFY2(set, "The Lua chunk setting the font did not run.");
+        QCOMPARE(luaGlobalString(host, "headlessLabelMain"), qsl("ok"));
+        const auto labelAfter = host->labelFont(qsl("main"));
+        QVERIFY(labelAfter);
+        QCOMPARE(labelAfter->family(), labelBefore->family());
+
+        const bool deleted = host->getLuaInterpreter()->compileAndExecuteScript(qsl(R"lua(
+headlessLabelMain = "not run"
+local ok, err = pcall(function()
+  assert(deleteLabel("main") == true, "deleteLabel did not answer true")
+  labelMainAfterDelete = getFont("main")
+end)
+headlessLabelMain = ok and "ok" or tostring(err)
+)lua"));
+        QVERIFY2(deleted, "The Lua chunk deleting the label did not run.");
+        QCOMPARE(luaGlobalString(host, "headlessLabelMain"), qsl("ok"));
+        const QString expected = QFontInfo(host->createFontWithSettings(family, startFont.pointSize())).family();
+        QCOMPARE(luaGlobalString(host, "labelMainSetFont"), expected);
+        QCOMPARE(luaGlobalString(host, "labelMainAfterDelete"), expected);
+        QCOMPARE(QFontInfo(host->getDisplayFont()).family(), expected);
+        QVERIFY2(QApplication::topLevelWidgets().isEmpty(), "A profile with no main window made a widget.");
+    }
 };
 
 #include "HeadlessHostSmokeTest.moc"
