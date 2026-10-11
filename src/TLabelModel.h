@@ -25,7 +25,10 @@
 #include <QPointer>
 #include <QRect>
 #include <QSet>
+#include <QSize>
 #include <QString>
+
+#include <optional>
 
 class Host;
 class QSvgRenderer;
@@ -44,6 +47,12 @@ struct TLabelModel
     TLabelModel(const TLabelModel&) = delete;
     TLabelModel& operator=(const TLabelModel&) = delete;
 
+    // Whether the SVG renderer is worth trying on a file, judged by its first bytes.
+    static bool svgCandidate(const QString& path);
+    static bool loadSvg(QSvgRenderer& renderer, const QString& path);
+    // A file's natural size as an SVG document or a raster image, without a widget.
+    static std::optional<QSize> imageSize(const QString& path);
+
     // Each releases the Lua registry index it replaces.
     void setClick(const int func);
     void setDoubleClick(const int func);
@@ -58,9 +67,6 @@ struct TLabelModel
     static QString styleSheetWithBackgroundColor(const QString& styleSheet, const QColor& color);
     // Whether the text has an anchor tag, which makes the label's links clickable
     static bool containsAnchorTag(const QString& text);
-    // Whether the file opens like an SVG document, which is worth handing to QSvgRenderer
-    static bool svgCandidate(const QString& path);
-    static bool loadSvg(QSvgRenderer& renderer, const QString& path);
     // What TLabel::setText() shows for the text: each anchor given the link style as an inline style
     QString linkStyledText(const QString& text) const;
 
