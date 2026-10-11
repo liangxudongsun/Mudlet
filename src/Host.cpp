@@ -5320,6 +5320,10 @@ std::pair<bool, QString> Host::createMiniConsole(const QString& windowname, cons
     }
 
     if (!mWindowRegistry.hasSubConsole(name)) {
+        // The null view would make it in its main window, as it has no record of a detached view's windows
+        if (!hasConsoleView() && !mpNullConsoleFrontend->ownsContainer(windowname)) {
+            return TNullConsoleFrontend::noView();
+        }
         consoleFrontend()->addMiniConsole(windowname, name, x, y, width, height);
         return {true, QString()};
     }
@@ -5342,6 +5346,9 @@ std::pair<bool, QString> Host::createScrollBox(const QString& windowname, const 
     }
 
     if (!mWindowRegistry.hasScrollBox(name)) {
+        if (!hasConsoleView() && !mpNullConsoleFrontend->ownsContainer(windowname)) {
+            return TNullConsoleFrontend::noView();
+        }
         if (consoleFrontend()->createScrollBox(windowname, name, x, y, width, height)) {
             return {true, QString()};
         }
@@ -5364,6 +5371,9 @@ std::pair<bool, QString> Host::createLabel(const QString& windowname, const QStr
     }
     if (mWindowRegistry.hasSubConsole(name)) {
         return {false, qsl("a miniconsole/userwindow with the name '%1' already exists").arg(name)};
+    }
+    if (!hasConsoleView() && !mpNullConsoleFrontend->ownsContainer(windowname)) {
+        return TNullConsoleFrontend::noView();
     }
     consoleFrontend()->createLabel(windowname, name, x, y, width, height, fillBg, clickthrough);
     return {true, QString()};
