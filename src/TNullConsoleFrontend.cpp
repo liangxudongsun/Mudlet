@@ -291,6 +291,48 @@ QSize labelSizeHint(const QFont& font, const QString& text, const bool textLabel
 
 } // namespace
 
+void TConsoleModelSink::printFormatted(const QString& text, const std::vector<TChar>& formatting, const TLinkStore& sourceLinkStore)
+{
+    mModel.buffer.appendFormatted(text, formatting, sourceLinkStore);
+    mModel.mirrorToStdOut(text);
+}
+
+void TConsoleModelSink::discardAll()
+{
+    mModel.clear();
+}
+
+void TConsoleModelSink::discardLastLine()
+{
+    mModel.buffer.clearLastLine();
+}
+
+void TNullMxpFrameFrontend::createInternalFrame(const QString& name, const QString&, const QString&, const QRect&, bool, bool)
+{
+    mView.addFrameConsole(name);
+}
+
+std::optional<QSize> TNullMxpFrameFrontend::createExternalFrame(const QString& name, const QString&, const QSize& size, bool)
+{
+    mView.addFrameConsole(name);
+    return size;
+}
+
+void TNullMxpFrameFrontend::createTabFrame(const QString& name, const QString&, const QString&, const QSize&, bool, bool)
+{
+    mView.addFrameConsole(name);
+}
+
+void TNullMxpFrameFrontend::destroyFrame(const QString& name)
+{
+    mView.removeFrameConsole(name);
+}
+
+TPrintSink* TNullMxpFrameFrontend::sink(const QString& name) const
+{
+    return mView.frameSink(name);
+}
+
 TNullConsoleFrontend::TNullConsoleFrontend(Host* pHost)
 : mpHost(pHost)
 {
@@ -508,6 +550,27 @@ void TNullConsoleFrontend::removeSubConsole(const QString& name)
     mRetiredConsoles.push_back(std::move(it->second.pModel));
     mSubConsoles.erase(it);
     queueRelease();
+}
+
+void TNullConsoleFrontend::addFrameConsole(const QString& name)
+{
+    // As TMxpFrameWidgets does for a second build of a name, which TMxpFrameManager never asks for
+    removeFrameConsole(name);
+    TConsoleModel& model = addSubConsole(name, TWindowRegistry::SubConsoleKind::MiniConsole, QString());
+    mSubConsoles[name].pFrameSink = std::make_unique<TConsoleModelSink>(model);
+}
+
+void TNullConsoleFrontend::removeFrameConsole(const QString& name)
+{
+    if (frameSink(name)) {
+        removeSubConsole(name);
+    }
+}
+
+TConsoleModelSink* TNullConsoleFrontend::frameSink(const QString& name) const
+{
+    const auto it = mSubConsoles.find(name);
+    return it == mSubConsoles.end() ? nullptr : it->second.pFrameSink.get();
 }
 
 void TNullConsoleFrontend::createBuffer(const QString& name)
@@ -1013,7 +1076,7 @@ void TNullConsoleFrontend::reportGridSize(const QString& name)
 
 QFont TNullConsoleFrontend::displayFont() const
 {
-    return mpHost->getDisplayFont();
+    return mpHost->displayFontWithNoView();
 }
 
 std::optional<QFont> TNullConsoleFrontend::consoleFont(const QString& name) const
