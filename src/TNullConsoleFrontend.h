@@ -249,9 +249,10 @@ public:
     const TMxpFrameFrontend& mxpFrames() const override { return mMxpFrames; }
 
 private:
-    // A scroll box takes the font of the user window it is in, as do the windows inside it. Deleting
-    // it takes what it holds out of the registry once deferred deletes run, as TScrollBox's children
-    // are destroyed with it then.
+    // A scroll box takes the font of the user window it is in, as does a label inside it with no style
+    // sheet, but not a new label, whose background colour is a sheet, nor a mini console, which has its
+    // own. Deleting it takes what it holds out of the registry once deferred deletes run, as
+    // TScrollBox's children are destroyed with it then.
     struct ScrollBox
     {
         QString userWindow;
@@ -312,6 +313,7 @@ private:
     void removeLabel(const QString& name);
     void queueRelease();
     QString userWindowOrMain(const QString& windowname) const;
+    bool ownsContainer(const QString& windowname) const;
     std::pair<QString, std::shared_ptr<ScrollBox>> containerFor(const QString& windowname, bool scrollBoxFirst) const;
     bool shownWithin(const QString& userWindow, const ScrollBox* box) const;
     bool setScrollBoxShown(const QString& name, bool shown);
