@@ -22,6 +22,7 @@
 #include "Host.h"
 
 #include <QFile>
+#include <QImage>
 #include <QRegularExpression>
 #include <QSvgRenderer>
 
@@ -269,4 +270,25 @@ bool TLabelModel::loadSvg(QSvgRenderer& renderer, const QString& path)
         renderer.load(path);
     }
     return renderer.isValid();
+}
+
+std::optional<QSize> TLabelModel::imageSize(const QString& path)
+{
+    // QImage reads an SVG only where the qsvg image plugin is deployed, so the
+    // document's own reader answers first; anything it cannot read - a raster
+    // under a .svg name included - falls through to QImage
+    if (svgCandidate(path)) {
+        QSvgRenderer renderer;
+        if (loadSvg(renderer, path) && !renderer.defaultSize().isEmpty()) {
+            return renderer.defaultSize();
+        }
+    }
+
+    const QImage image(path);
+
+    if (image.isNull()) {
+        return {};
+    }
+
+    return image.size();
 }
