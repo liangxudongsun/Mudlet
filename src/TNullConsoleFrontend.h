@@ -114,14 +114,14 @@ public:
     bool setLabelMovieFrame(const QString& name, int frame) override;
     bool setLabelMovieSpeed(const QString& name, int percent) override;
     bool scaleLabelMovie(const QString& name, bool followLabelSize) override;
-    std::pair<bool, QString> createCommandLine(const QString&, const QString&, int, int, int, int) override { return noView(); }
-    std::pair<bool, QString> deleteCommandLine(const QString&) override { return noView(); }
-    bool setCommandLineAction(const QString&, int) override { return false; }
-    bool resetCommandLineAction(const QString&) override { return false; }
+    std::pair<bool, QString> createCommandLine(const QString& windowname, const QString& name, int x, int y, int width, int height) override;
+    std::pair<bool, QString> deleteCommandLine(const QString& name) override;
+    bool setCommandLineAction(const QString& name, int func) override;
+    bool resetCommandLineAction(const QString& name) override;
     std::pair<bool, QString> setCmdLineStyleSheet(const QString&, const QString&) override { return noView(); }
-    bool replaceCommandLineText(const QString&, const QString&) override { return false; }
-    bool appendCommandLineText(const QString&, const QString&) override { return false; }
-    bool clearCommandLine(const QString&) override { return false; }
+    bool replaceCommandLineText(const QString& name, const QString& text) override;
+    bool appendCommandLineText(const QString& name, const QString& text) override;
+    bool clearCommandLine(const QString& name) override { return replaceCommandLineText(name, QString()); }
     bool selectCommandLineText(const QString&) override { return false; }
     bool addCommandLineSuggestion(const QString&, const QString&) override { return false; }
     bool removeCommandLineSuggestion(const QString&, const QString&) override { return false; }
@@ -160,13 +160,13 @@ public:
     std::pair<bool, QString> setUserWindowTitle(const QString& name, const QString& text) override;
     bool createScrollBox(const QString& windowname, const QString& name, int x, int y, int width, int height) override;
     std::pair<bool, QString> deleteScrollBox(const QString& name) override;
-    // Only a scroll box: command lines and text boxes are not made here
-    bool showPlainWindow(const QString& name) override { return setScrollBoxShown(name, true); }
-    bool hidePlainWindow(const QString& name) override { return setScrollBoxShown(name, false); }
+    // A scroll box or a command line: text boxes are not made here
+    bool showPlainWindow(const QString& name) override { return setPlainWindowShown(name, true); }
+    bool hidePlainWindow(const QString& name) override { return setPlainWindowShown(name, false); }
     bool resizePlainWindow(const QString& name, int width, int height) override;
     bool movePlainWindow(const QString& name, int x, int y) override;
     // No Lua call reads the stacking order back, so these only answer whether the window exists
-    bool raiseWindow(const QString& name) override { return mLabels.contains(name) || subConsoleModel(name) || mScrollBoxes.contains(name); }
+    bool raiseWindow(const QString& name) override { return mLabels.contains(name) || subConsoleModel(name) || mScrollBoxes.contains(name) || mCommandLines.contains(name); }
     bool lowerWindow(const QString& name) override { return raiseWindow(name); }
     std::pair<bool, QString> reparentWindow(const QString& windowname, const QString& name, int x, int y, bool show) override;
     bool setWindowScrollBarVisible(const QString& name, bool visible) override;
@@ -263,6 +263,15 @@ private:
     // out of the registry at once rather than when deferred deletes run.
     // shown is the window's own flag, as QWidget::isHidden() is a widget's; what scripts read is also
     // false while the user window holding it is hidden.
+    // Its text is in the registry, as a real one's is
+    struct CommandLine
+    {
+        QString userWindow;
+        std::shared_ptr<ScrollBox> box;
+        bool shown = true;
+        // TCommandLine::mActionFunction, a Lua registry index
+        int action = 0;
+    };
     struct SubConsole
     {
         std::unique_ptr<TConsoleModel> pModel;
@@ -316,7 +325,8 @@ private:
     bool ownsContainer(const QString& windowname) const;
     std::pair<QString, std::shared_ptr<ScrollBox>> containerFor(const QString& windowname, bool scrollBoxFirst) const;
     bool shownWithin(const QString& userWindow, const ScrollBox* box) const;
-    bool setScrollBoxShown(const QString& name, bool shown);
+    bool setPlainWindowShown(const QString& name, bool shown);
+    bool ownsCommandLine(const QString& name) const;
     static bool within(const ScrollBox* container, const ScrollBox* box);
     void removeScrollBoxContents(const ScrollBox* box);
     void moveScrollBoxContents(const ScrollBox* box);
@@ -342,6 +352,7 @@ private:
     std::map<QString, SubConsole> mSubConsoles;
     std::map<QString, Label> mLabels;
     std::map<QString, std::shared_ptr<ScrollBox>> mScrollBoxes;
+    std::map<QString, CommandLine> mCommandLines;
     std::vector<std::unique_ptr<TConsoleModel>> mRetiredConsoles;
     std::vector<std::unique_ptr<TLabelModel>> mRetiredLabels;
     bool mReleaseQueued = false;
